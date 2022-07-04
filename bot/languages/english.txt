@@ -1,0 +1,26 @@
+startup; Welcome to GoalSet bot.
+language_setting; Please choose your language.
+menu; ✔ Menu
+settings; ◀ Settings
+languages; 🌐 Languages
+year_goals; ⏳ Year goals
+month_goals; 📅 Month goals
+week_goals; 📌 Week goals
+today_goals; 📝 Day goals
+tomorrow_goals; ⏱ Tomorrow goals
+add_goal; 📌 Add goal
+deleted_goal; ✂ Goal was deleted ✂
+back; ◀ Back
+make_goal_user; --- Write a goal, that you want to add. ---
+cancel; Cancel
+get_goals; 🗂 Show goals
+answer_get_goals; ↓↓↓List of yours goals↓↓↓
+get_goals_empty; No goals yet😜
+statistic; 📈 Statistics
+amount_of_completed_goals; Amount of completed goals
+amount_of_denied_goals; Amount of denied goals
+show; Show
+end_of_day; End of the day! Please mark the goals, that you reached today.
+new_day; Congratulations on a new day, do you want to see your goals for today?
+week_goals_reached; Well done, @%,a week has already passed. Please mark the goals, that you reached this week.
+month_goals_reached; You did a great job, @%, a month has already passed. Please mark the goals, that you reached this month.
