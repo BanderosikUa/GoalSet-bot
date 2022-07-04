@@ -5,7 +5,7 @@ from config import bot
 from ..languages import get_json_name
 from aiogram.types import User
 
-from bot.db import db
+from src.db import db
 
 from ..keyboards import inline_kb_goals
 from ..other import show_goals

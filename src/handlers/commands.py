@@ -12,10 +12,6 @@ from ..other import days_len, show_goals
 from ..languages import get_json_name
 from config import bot
 
-user_lang = None
-user_id = None
-message_id = None
-
 
 class FSMAdmin(StatesGroup):
     goal = State()
@@ -27,16 +23,14 @@ async def command_start(message: types.Message):
 
 
 async def command_menu(message: types.Message):
-    global user_lang
+    user_id = message.from_user.id
+    user_lang = db.show_lang(user_id)
     if not user_lang:
         user_lang = db.show_lang(message.from_user.id)
     await message.answer(get_json_name(user_lang, 'menu'), reply_markup=kb_menu(user_lang))
 
 
 async def commands(message: types.Message):
-    global user_id
-    global user_lang
-    global message_id
     user_id = message.from_user.id
     message_id = message.message_id
     user_lang = db.show_lang(user_id)
@@ -92,6 +86,8 @@ async def commands(message: types.Message):
 # we use proxy on pythonanywhere our message encoded in utf-8, so it
 # is too large to put in callback data.
 async def make_goal(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    user_lang = db.show_lang(user_id)
     chars = [*string.ascii_letters, *string.digits, '%', '#', '!', '$', '?']
     table_name = db.get_cache(user_id)
     text = '@' + ''.join([choice(chars) for i in range(7)]) + '@' + message.text
@@ -101,11 +97,14 @@ async def make_goal(message: types.Message, state: FSMContext):
 
 
 async def cancel_get_goal(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    user_lang = db.show_lang(user_id)
     current_state = await state.get_state()
     if current_state is None:
         return
     await state.finish()
-    await message.answer(get_json_name(user_lang, 'cancel'), reply_markup=kb_menu_details(user_lang))
+    await message.answer(get_json_name(user_lang, 'cancel'),
+                         reply_markup=kb_menu_details(user_lang))
 
 
 def register_handler_commands(dp: Dispatcher):
@@ -114,4 +113,3 @@ def register_handler_commands(dp: Dispatcher):
     dp.register_message_handler(commands)
     dp.register_message_handler(cancel_get_goal, Text(equals=['Cancel', 'Отмена']), state='*')
     dp.register_message_handler(make_goal, state=FSMAdmin.goal)
-
