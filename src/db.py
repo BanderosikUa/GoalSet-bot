@@ -1,3 +1,4 @@
+from datetime import datetime, date
 import sqlite3
 
 from pathlib import Path
@@ -5,158 +6,173 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-class DataBase:
-    def __init__(self, dir=BASE_DIR.joinpath('src') / 'database.db'):
-        self.db = sqlite3.connect(dir, check_same_thread=False)
-        self.sql = self.db.cursor()
-        self.db.execute('''CREATE TABLE IF NOT EXISTS settings (
-            user INTEGER PRIMARY KEY,
-            language TEXT,
-            cache TEXT
-        )''')
-        self.db.execute('''CREATE TABLE IF NOT EXISTS goals (
-            user INTEGER PRIMARY KEY,
-            today_goals TEXT,
-            tomorrow_goals TEXT,
-            week_goals TEXT,
-            month_goals TEXT,
-            year_goals TEXT
-        )''')
-        self.db.execute('''CREATE TABLE IF NOT EXISTS statistic (
-                    user INTEGER PRIMARY KEY,
-                    completed_goals INT,
-                    denied_goals INT
+class BaseDatabase:
+
+    __DB_LOCATION = BASE_DIR.joinpath('src') / 'database.sqlite3'
+    _goals_tables = (
+        'today_goals',
+        'tomorrow_goals',
+        'week_goals',
+        'month_goals',
+        'year_goals'
+    )
+
+    def __init__(self, is_test=False):
+
+        if is_test:
+            self._db_connection = sqlite3.connect(':memory:')
+        else:
+            self._db_connection = sqlite3.connect(self.__DB_LOCATION,
+                                                  check_same_thread=False)
+        
+        self.cur = self._db_connection.cursor()
+        try:
+            with self._db_connection:
+                self._db_connection.execute('''CREATE TABLE IF NOT EXISTS User (
+                    id INTEGER PRIMARY KEY,
+                    language TEXT,
+                    cache TEXT
                 )''')
-        self.db.commit()
+                for goal_table_name in self._goals_tables:
+                    self._db_connection.execute(f'''CREATE TABLE IF NOT EXISTS {goal_table_name} (
+                        id INTEGER PRIMARY KEY,
+                        goal TEXT,
+                        time_created DATE,
+                        userId INT,
+                        FOREIGN KEY(userId) REFERENCES User(id)
+                    )''')
+
+                self._db_connection.execute('''CREATE TABLE IF NOT EXISTS statistic (
+                            userId INT,
+                            completed_goals INT,
+                            denied_goals INT,
+                            FOREIGN KEY(userId) REFERENCES User(id)
+                        )''')
+                self._db_connection.commit()
+        except sqlite3.IntegrityError:
+            print("couldn't add Python twice")
+
+    def __del__(self):
+        self._db_connection.close()
+
+
+class BaseDbRegistration(BaseDatabase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def register(self, user, language,
-                 cache='', daygoal='', tomorrowgoal='',
-                 weakgoal='', monthgoal='', yeargoal=''):
-        self.sql.execute(f"SELECT user FROM settings WHERE user ={user}")
-        if self.sql.fetchone() is None:
-            self.sql.execute("INSERT INTO settings VALUES (?, ?, ?)",
+                 cache=''):
+        self.cur.execute(f"SELECT id FROM User WHERE id ={user}")
+        if self.cur.fetchone() is None:
+            self.cur.execute("INSERT INTO User VALUES (?, ?, ?)",
                              (user, language, cache)
-                            )
-            self.db.commit()
+                             )
+            self._db_connection.commit()
         else:
-            self.sql.execute("Update settings SET language = ? where user = ?",
+            self.cur.execute("Update User SET language = ? where id = ?",
                              (language, user,))
-            self.db.commit()
-        self.sql.execute(f"SELECT user FROM goals WHERE user = {user}")
-        if self.sql.fetchone() is None:
-            self.sql.execute("INSERT INTO goals VALUES (?, ?, ?, ?, ?, ?)",
-                             (user, daygoal, tomorrowgoal,
-                              weakgoal, monthgoal, yeargoal))
-            self.db.commit()
-        self.sql.execute(f"SELECT user FROM statistic WHERE user = {user}")
-        if self.sql.fetchone() is None:
-            self.sql.execute("INSERT INTO statistic VALUES (?, ?, ?)",
+            self._db_connection.commit()
+        # self.cur.execute(f"SELECT userId FROM goals WHERE userId = {user}")
+
+        # for goal_table in self._goals_tables:
+        #     self.__insert_blank_str_in_table(
+        #         table=goal_table,
+        #         userId=user
+        #     )
+        
+        self.cur.execute(f"SELECT userId FROM statistic WHERE userId = {user}")
+        if self.cur.fetchone() is None:
+            self.cur.execute("INSERT INTO statistic VALUES (?, ?, ?)",
                              (user, 0, 0))
-            self.db.commit()
+            self._db_connection.commit()
 
-    def make_goal(self, user, table_name, goal, date: str):
-        self.sql.execute(f"SELECT {table_name} FROM goals WHERE user = ?",
-                         (user, ))
-        previous_daygoal = self.sql.fetchone()
-        if previous_daygoal[0] != '':
-            string = " ".join(str(x) for x in previous_daygoal)
-            user_daygoal = string + goal + ';'
-        else:
-            user_daygoal = date + ';' + goal + ';'
-        self.sql.execute(f"UPDATE goals SET {table_name} = ? WHERE user = ?",
-                         (user_daygoal, user))
-        self.db.commit()
+    def __insert_blank_str_in_table(self, *, table: str, userId: int):
+        self.cur.execute(f"SELECT userId FROM {table} WHERE userId = {userId}")
+        if self.cur.fetchone() is None:
+            self.cur.execute(f"INSERT INTO {table} VALUES (?, ?)",
+                             (userId, ''))
+            self._db_connection.commit()
 
-    def delete_all(self, user, table_name):
-        self.sql.execute(f"UPDATE goals SET {table_name} = ? WHERE user = ?",
-                         ('', user))
-        self.db.commit()
+
+class Database(BaseDbRegistration):
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def make_goal(self, user: int,
+                  table_name: str, goal: str,
+                  time=None):
+        """Create goal """
+        if not time:
+            time = date.strftime(date.today(), '%Y-%m-%d')
+        self.cur.execute(f"INSERT INTO {table_name} (goal, time_created, userId) VALUES (?, ?, ?)",
+                         (goal, time, user))
+        
+        self._db_connection.commit()
+
+    def get_goals(self, user: int, table_name: str, goal_id=None):
+        self.cur.execute(f"SELECT id, goal, time_created FROM {table_name} WHERE userId = ? {'AND id = ' + str(goal_id) if goal_id else ''}",
+                         (user,))
+
+        return self.cur.fetchall()
+        
+    def delete_goal(self, user: int, table_name: str, deleted_id: int):
+        self.cur.execute(f"DELETE FROM {table_name} WHERE id = ?",
+                         (deleted_id,))
+
+    def delete_all(self, user: int, table_name: str):
+        """ Delete all user goals, only working if you admin"""
+        self.cur.execute(f"DELETE FROM {table_name} WHERE userId = ?",
+                         (user,))
+        self._db_connection.commit()
 
     def append_cache(self, user, cache):
-        self.sql.execute("UPDATE settings SET cache = ? WHERE user = ?",
+        self.cur.execute("UPDATE User SET cache = ? WHERE id = ?",
                          (cache, user))
-        self.db.commit()
+        self._db_connection.commit()
 
     def pop_cache(self, user):
         cache = ''
-        self.sql.execute("UPDATE settings SET cache = ? WHERE user = ?",
+        self.cur.execute("UPDATE User SET cache = ? WHERE id = ?",
                          (cache, user))
-        self.db.commit()
+        self._db_connection.commit()
 
     def get_cache(self, user):
-        self.sql.execute("SELECT cache FROM settings WHERE user = ?",
+        self.cur.execute("SELECT cache FROM User WHERE id = ?",
                          (user, ))
-        cache = self.sql.fetchone()
+        cache = self.cur.fetchone()
         if cache:
             return cache[0]
         return None
 
-    def get_goals(self, user, table_name, if_string: bool = False):
-        self.sql.execute(f"SELECT {table_name} FROM goals WHERE user = ?",
-                         (user, ))
-        fetch_one = self.sql.fetchone()
-        if fetch_one:
-            string = fetch_one[0]
-            if not if_string:
-                List = list(string.split(';'))
-                if List:
-                    List.pop()
-                    return List
-                else:
-                    return None
-            return string
-        else:
-            return None
-
-    def delete_goal(self, user, table_name, deleted_str):
-        goals = self.get_goals(user, table_name)
-        for goal in goals:
-            if deleted_str in goal:
-                goals.remove(goal)
-                self.sql.execute(f"UPDATE goals SET {table_name} = ?\
-                                 WHERE user = ?", (";".join(goals)+';', user))
-                self.db.commit()
-                return
-
     def show_lang(self, user):
-        self.sql.execute("SELECT language FROM settings WHERE user = ?",
+        self.cur.execute("SELECT language FROM User WHERE id = ?",
                          (user, ))
-        lang = self.sql.fetchone()
+        lang = self.cur.fetchone()
         if lang:
             return lang[0]
         else:
             return None
 
     def add_statistic(self, user, denied_or_completed):
-        self.sql.execute(f"SELECT {denied_or_completed} FROM statistic\
-                         WHERE user = ?", (user,))
-        amount = self.sql.fetchone()[0] + 1
-        self.sql.execute(f"UPDATE statistic SET {denied_or_completed} = ?\
-                         WHERE user = ?", (amount, user))
-        self.db.commit()
+        self.cur.execute(f"SELECT {denied_or_completed} FROM statistic\
+                         WHERE userId = ?", (user,))
+        amount = self.cur.fetchone()[0] + 1
+        self.cur.execute(f"UPDATE statistic SET {denied_or_completed} = ?\
+                         WHERE userId = ?", (amount, user))
+        self._db_connection.commit()
 
     def get_statistic(self, user):
-        self.sql.execute("SELECT denied_goals, completed_goals\
-                         FROM statistic WHERE user = ?", (user,))
-        return self.sql.fetchall()
+        self.cur.execute("SELECT denied_goals, completed_goals\
+                         FROM statistic WHERE userId = ?", (user,))
+        return self.cur.fetchall()
 
-    def get_time(self, user, table_name):
-        time = self.get_goals(user, table_name)
-        if time:
-            return time[0]
-        else:
-            return None
+    # def get_time(self, user, table_name):
 
     def get_users(self):
-        self.sql.execute("SELECT user FROM goals")
-        return self.sql.fetchall()
+        self.cur.execute("SELECT id FROM User")
+        return self.cur.fetchall()
 
-    def update_time(self, user, table_name, new_time):
-        goals = self.get_goals(user, table_name)
-        goals[0] = str(new_time)
-        self.sql.execute(f"UPDATE goals SET {table_name} = ?\
-                         WHERE user = ?",
-                         (";".join(goals)+';', user))
-        self.db.commit()
 
-db = DataBase()
+db = Database()

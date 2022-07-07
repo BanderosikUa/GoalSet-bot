@@ -1,2 +1,2 @@
-from .times import *
-from .show_goals import *
+from src.other.times import *
+from src.other.show_goals import *

@@ -1,2 +1,2 @@
-from .clien_kb import *
-from .inline import *
+from src.keyboards.clien_kb import *
+from src.keyboards.inline import *
