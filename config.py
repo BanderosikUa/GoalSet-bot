@@ -7,10 +7,13 @@ from pathlib import Path
 
 from src.db import db
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 storage = MemoryStorage()
 
-proxy_url = 'http://proxy.server:3128'
-bot = Bot('5172445766:AAES3ZLKjSL38Q7PC5ucUzLBJYYo7jeqme8') 
+bot = Bot(os.getenv('bot_key'))
 dp = Dispatcher(bot, storage=storage)
 BASE_DIR = Path(__file__).resolve().parent
 lang_dir = BASE_DIR.joinpath('src').joinpath('languages') / 'languages.json'
