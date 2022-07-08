@@ -5,7 +5,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-class BaseDatabase():
+class BaseDatabase:
+    """Class with connection, cursor and creating tables"""
 
     __DB_LOCATION = BASE_DIR.joinpath('src') / 'database.sqlite3'
     _goals_tables = (
@@ -56,6 +57,7 @@ class BaseDatabase():
 
 
 class BaseDbRegistration(BaseDatabase):
+    """Base class for register new user"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -81,6 +83,7 @@ class BaseDbRegistration(BaseDatabase):
 
 
 class DatabaseGoals(BaseDbRegistration):
+    """Class for fetching, creating and deleting goals"""
     def make_goal(self, user: int,
                   table_name: str, goal: str,
                   time=None):
@@ -105,6 +108,8 @@ class DatabaseGoals(BaseDbRegistration):
 
 
 class DatabaseCache(BaseDbRegistration):
+    """Class for create, delete, get cache.
+    Cache need for know which goal user choose"""
     def append_cache(self, user, cache):
         self.cur.execute("UPDATE User SET cache = ? WHERE id = ?",
                          (cache, user))
@@ -125,6 +130,7 @@ class DatabaseCache(BaseDbRegistration):
         return None
 
 class DatabaseStatistic(BaseDbRegistration):
+    """Class that adding statistic and fetching it"""
     def add_statistic(self, user, denied_or_completed):
         self.cur.execute(f"SELECT {denied_or_completed} FROM statistic\
                          WHERE userId = ?", (user,))
