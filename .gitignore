@@ -5,3 +5,4 @@ database.db
 .vscode/
 .env
 database.sqlite3
+.idea/

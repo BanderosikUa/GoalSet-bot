@@ -5,8 +5,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-class BaseDatabase:
+class BaseDatabase():
 
     __DB_LOCATION = BASE_DIR.joinpath('src') / 'database.sqlite3'
     _goals_tables = (
@@ -73,33 +72,15 @@ class BaseDbRegistration(BaseDatabase):
             self.cur.execute("Update User SET language = ? where id = ?",
                              (language, user,))
             self._db_connection.commit()
-        # self.cur.execute(f"SELECT userId FROM goals WHERE userId = {user}")
 
-        # for goal_table in self._goals_tables:
-        #     self.__insert_blank_str_in_table(
-        #         table=goal_table,
-        #         userId=user
-        #     )
-        
         self.cur.execute(f"SELECT userId FROM statistic WHERE userId = {user}")
         if self.cur.fetchone() is None:
             self.cur.execute("INSERT INTO statistic VALUES (?, ?, ?)",
                              (user, 0, 0))
             self._db_connection.commit()
 
-    def __insert_blank_str_in_table(self, *, table: str, userId: int):
-        self.cur.execute(f"SELECT userId FROM {table} WHERE userId = {userId}")
-        if self.cur.fetchone() is None:
-            self.cur.execute(f"INSERT INTO {table} VALUES (?, ?)",
-                             (userId, ''))
-            self._db_connection.commit()
 
-
-class Database(BaseDbRegistration):
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class DatabaseGoals(BaseDbRegistration):
     def make_goal(self, user: int,
                   table_name: str, goal: str,
                   time=None):
@@ -108,25 +89,22 @@ class Database(BaseDbRegistration):
             time = date.strftime(date.today(), '%Y-%m-%d')
         self.cur.execute(f"INSERT INTO {table_name} (goal, time_created, userId) VALUES (?, ?, ?)",
                          (goal, time, user))
-        
+
         self._db_connection.commit()
 
     def get_goals(self, user: int, table_name: str, goal_id=None):
-        self.cur.execute(f"SELECT id, goal, time_created FROM {table_name} WHERE userId = ? {'AND id = ' + str(goal_id) if goal_id else ''}",
-                         (user,))
+        self.cur.execute(
+            f"SELECT id, goal, time_created FROM {table_name} WHERE userId = ? {'AND id = ' + str(goal_id) if goal_id else ''}",
+            (user,))
 
         return self.cur.fetchall()
-        
+
     def delete_goal(self, user: int, table_name: str, deleted_id: int):
         self.cur.execute(f"DELETE FROM {table_name} WHERE id = ?",
                          (deleted_id,))
 
-    def delete_all(self, user: int, table_name: str):
-        """ Delete all user goals, only working if you admin"""
-        self.cur.execute(f"DELETE FROM {table_name} WHERE userId = ?",
-                         (user,))
-        self._db_connection.commit()
 
+class DatabaseCache(BaseDbRegistration):
     def append_cache(self, user, cache):
         self.cur.execute("UPDATE User SET cache = ? WHERE id = ?",
                          (cache, user))
@@ -146,15 +124,7 @@ class Database(BaseDbRegistration):
             return cache[0]
         return None
 
-    def show_lang(self, user):
-        self.cur.execute("SELECT language FROM User WHERE id = ?",
-                         (user, ))
-        lang = self.cur.fetchone()
-        if lang:
-            return lang[0]
-        else:
-            return None
-
+class DatabaseStatistic(BaseDbRegistration):
     def add_statistic(self, user, denied_or_completed):
         self.cur.execute(f"SELECT {denied_or_completed} FROM statistic\
                          WHERE userId = ?", (user,))
@@ -168,7 +138,27 @@ class Database(BaseDbRegistration):
                          FROM statistic WHERE userId = ?", (user,))
         return self.cur.fetchall()
 
-    # def get_time(self, user, table_name):
+
+
+class Database(DatabaseGoals, DatabaseCache, DatabaseStatistic):
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def delete_all(self, user: int, table_name: str):
+        """ Delete all user goals, only working if you admin"""
+        self.cur.execute(f"DELETE FROM {table_name} WHERE userId = ?",
+                         (user,))
+        self._db_connection.commit()
+
+    def show_lang(self, user):
+        self.cur.execute("SELECT language FROM User WHERE id = ?",
+                         (user, ))
+        lang = self.cur.fetchone()
+        if lang:
+            return lang[0]
+        else:
+            return None
 
     def get_users(self):
         self.cur.execute("SELECT id FROM User")

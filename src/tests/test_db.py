@@ -42,13 +42,14 @@ class TestDb(unittest.TestCase):
         user_id = 1
         table_name = 'today_goals'
         goal = 'Make something'
+        time_today = date.strftime(date.today(), '%Y-%m-%d')
 
         self.test_db.make_goal(
             user=user_id,
             table_name=table_name,
             goal=goal
         )
-        expected_response = [(1, goal)]
+        expected_response = [(1, goal, time_today)]
         real_response = self.test_db.get_goals(
             user=user_id,
             table_name=table_name
